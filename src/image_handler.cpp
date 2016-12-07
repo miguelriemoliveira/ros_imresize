@@ -19,55 +19,46 @@
 ////////////////////////////////////////////////////////////////////////////
 
 
+
 SingleImageHandler::SingleImageHandler() :
 _infoReceived(false),
-_nh("/ros_imresize"),
-_width(0),
-_height(0),
+_nh("~"),
+_width(640),
+_height(480),
 _it(_nh)
 {
-    std::string imgTopicName;
-    std::string infoTopicName;
-
+    std::string imgTopicName ("/stereo/left/image_raw");
+    std::string infoTopicName ("/stereo/left/camera_info");
+    std::string newTopicName("/stereo_cam/left");
+    bool _undistort = false;
     ros::Rate wrait(10);
 
-    ROS_INFO("Retrieving parameters ...");
 
-    while(!(_nh.getParam("topic_crop", imgTopicName) &&
-          _nh.getParam("camera_info", infoTopicName)) &&
-	  ros::ok())
+    _nh.getParam("resize_width", _width);
+    _nh.getParam("resize_height", _height);
+    _nh.getParam("topic_crop", imgTopicName);
+    _nh.getParam("camera_info", infoTopicName);
+    _nh.getParam("namespaceTopics", newTopicName);
+    _nh.getParam("undistord", _undistort);
+
+std::cout<<"***************************************************************"<<imgTopicName<<std::endl;
+std::cout<<"***************************************************************"<<newTopicName<<std::endl;
+
+    ros::Subscriber sub_info = _nh.subscribe(infoTopicName, 1, &SingleImageHandler::setCameraInfo, this);
+
+    _sub_img = _it.subscribe(imgTopicName, 1, &SingleImageHandler::topicCallback, this);
+
+    _pub_img = _it.advertise(newTopicName + std::string("/image_raw"), 1);
+
+    _pub_info = _nh.advertise<sensor_msgs::CameraInfo>(newTopicName + std::string("/camera_info"), 1);
+
+    ROS_INFO("Running\n");
+
+    while(ros::ok())
     {
 	ros::spinOnce();
 	wrait.sleep();
     }
-
-    ROS_INFO("Parameters retrieved ...");
-
-    _nh.param("resize_width", _width, (int)640);
-    _nh.param("resize_height", _height, (int)480);
-
-    _nh.param("undistord", _undistord, false);
-
-    ros::Subscriber sub_info = _nh.subscribe(infoTopicName, 1, &SingleImageHandler::setCameraInfo, this);
-
-    ROS_INFO("WAITING for ROS camera calibration!\n");
-    ros::Rate rate(10);
-    while (!_infoReceived  && ros::ok())
-    {
-        ros::spinOnce();
-        rate.sleep();
-    }
-    ROS_INFO("RECEIVED ROS camera calibration!\n");
-
-    sub_info.shutdown();
-
-    _sub_img = _it.subscribe(imgTopicName, 1, &SingleImageHandler::topicCallback, this);
-
-    _pub_img = _it.advertise(imgTopicName + "_crop", 1);
-
-    _pub_info = _nh.advertise<sensor_msgs::CameraInfo>(infoTopicName + "_crop", 1);
-
-    ROS_INFO("Running\n");
 }
 
 SingleImageHandler::~SingleImageHandler()
@@ -110,7 +101,7 @@ void SingleImageHandler::setCameraInfo(const sensor_msgs::CameraInfoConstPtr &re
     _infoCam.K[4] *= scale_y;
     _infoCam.K[5] *= scale_y;
 
-    ROS_INFO_STREAM("Previous camera info :\n" << *received_info << "\n");
+    //ROS_INFO_STREAM("Previous camera info :\n" << *received_info << "\n");
 
     if (_undistord)
     {
@@ -137,14 +128,14 @@ void SingleImageHandler::setCameraInfo(const sensor_msgs::CameraInfoConstPtr &re
 
         _infoCam.D.clear();
 
-        ROS_INFO_STREAM("Undistortion active with param :\n" << _dist << "\n");
-        ROS_INFO_STREAM("Undistortion active with param :\n" << _K << "\n");
+        //ROS_INFO_STREAM("Undistortion active with param :\n" << _dist << "\n");
+        //ROS_INFO_STREAM("Undistortion active with param :\n" << _K << "\n");
     }
 
     _infoCam.width = _width;
     _infoCam.height = _height;
 
-    ROS_INFO_STREAM("New camera info :\n" << _infoCam << "\n");
+    //ROS_INFO_STREAM("New camera info :\n" << _infoCam << "\n");
 
     _infoReceived = true;
 
